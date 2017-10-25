@@ -1,5 +1,16 @@
 'use strict'
 
+// function getTypeURL (type) {
+//   const url = `#${type.name.toLowerCase()}`
+//   if (typeMap[type.name]) {
+//     return url
+//   } else if (typeof unknownTypeURL === 'function') {
+//     return unknownTypeURL(type)
+//   } else if (unknownTypeURL) {
+//     return unknownTypeURL + url
+//   }
+// }
+
 function sortBy (arr, property) {
   arr.sort((a, b) => {
     const aValue = a[property]
@@ -10,22 +21,26 @@ function sortBy (arr, property) {
   })
 }
 
-function renderType (type, options) {
+function renderType (type) {
   if (type.kind === 'NON_NULL') {
-    return renderType(type.ofType, options) + '!'
+    return renderType(type.ofType) + '!'
   }
   if (type.kind === 'LIST') {
-    return `[${renderType(type.ofType, options)}]`
+    return `[${renderType(type.ofType)}]`
   }
-  const url = options.getTypeURL(type)
-  return url ? `<a href="${url}">${type.name}</a>` : type.name
+  // const url = options.getTypeURL(type)
+  // return url ? `<a href="${url}">${type.name}</a>` : type.name
+  return type.name
 }
 
 function renderObject (type, options) {
   options = options || {}
   const skipTitle = options.skipTitle === true
   const printer = options.printer || console.log
-  const getTypeURL = options.getTypeURL
+  // const getTypeURL = options.getTypeURL
+  // const getTypeURL = type => {
+  //   return ''
+  // }
 
   if (!skipTitle) {
     printer(`\n### ${type.name}\n`)
@@ -50,7 +65,7 @@ function renderObject (type, options) {
         ? ' ⚠️'
         : ''}</td>`
     )
-    printer(`<td valign="top">${renderType(field.type, { getTypeURL })}</td>`)
+    printer(`<td valign="top">${renderType(field.type)}</td>`)
     if (field.description || field.isDeprecated) {
       printer('<td>')
       if (field.description) {
@@ -73,7 +88,7 @@ function renderObject (type, options) {
       field.args.forEach((arg, i) => {
         printer('<tr>')
         printer(`<td colspan="2" align="right" valign="top">${arg.name}</td>`)
-        printer(`<td valign="top">${renderType(arg.type, { getTypeURL })}</td>`)
+        printer(`<td valign="top">${renderType(arg.type)}</td>`)
         if (arg.description) {
           printer('<td>')
           printer(`\n${arg.description}\n`)
@@ -89,63 +104,31 @@ function renderObject (type, options) {
   printer('</table>')
 }
 
-function renderSchema (schema, options) {
+function renderContent (
+  queries,
+  mutations,
+  objects,
+  enums,
+  scalars,
+  interfaces,
+  options
+) {
   options = options || {}
-  const title = options.title || 'Schema Types'
-  const prologue = options.prologue || ''
-  const epilogue = options.epilogue || ''
   const printer = options.printer || console.log
-  const unknownTypeURL = options.unknownTypeURL
-
-  if (schema.__schema) {
-    schema = schema.__schema
-  }
-
-  const types = schema.types.filter(type => !type.name.startsWith('__'))
-  const typeMap = schema.types.reduce((typeMap, type) => {
-    return Object.assign(typeMap, { [type.name]: type })
-  }, {})
-  const getTypeURL = type => {
-    const url = `#${type.name.toLowerCase()}`
-    if (typeMap[type.name]) {
-      return url
-    } else if (typeof unknownTypeURL === 'function') {
-      return unknownTypeURL(type)
-    } else if (unknownTypeURL) {
-      return unknownTypeURL + url
-    }
-  }
-
-  const query =
-    schema.queryType && types.find(type => type.name === schema.queryType.name)
-  const mutation =
-    schema.mutationType &&
-    types.find(type => type.name === schema.mutationType.name)
-  const objects = types.filter(
-    type => type.kind === 'OBJECT' && type !== query && type !== mutation
-  )
-  const enums = types.filter(type => type.kind === 'ENUM')
-  const scalars = types.filter(type => type.kind === 'SCALAR')
-  const interfaces = types.filter(type => type.kind === 'INTERFACE')
-
-  sortBy(objects, 'name')
-  sortBy(enums, 'name')
-  sortBy(scalars, 'name')
-  sortBy(interfaces, 'name')
-
-  printer(`# ${title}\n`)
-
-  if (prologue) {
-    printer(`${prologue}\n`)
-  }
 
   printer('<details>')
   printer('  <summary><strong>Table of Contents</strong></summary>\n')
-  if (query) {
+  if (queries) {
     printer('  * [Queries](#queries)')
+    queries.fields.forEach(type => {
+      printer(`    * [${type.name}](#${type.name.toLowerCase()})`)
+    })
   }
-  if (mutation) {
+  if (mutations) {
     printer('  * [Mutations](#mutations)')
+    mutations.fields.forEach(type => {
+      printer(`    * [${type.name}](#${type.name.toLowerCase()})`)
+    })
   }
   if (objects.length) {
     printer('  * [Objects](#objects)')
@@ -172,24 +155,46 @@ function renderSchema (schema, options) {
     })
   }
   printer('\n</details>')
+}
 
-  if (query) {
-    printer(`\n## Queries`)
-    renderObject(query, { skipTitle: true, printer, getTypeURL })
-  }
+function renderQueries (queries) {
+  const options = {}
+  const printer = options.printer || console.log
 
-  if (mutation) {
-    printer(`\n## Mutations`)
-    renderObject(mutation, { skipTitle: true, printer, getTypeURL })
+  printer(`\n## Queries`)
+  if (queries) {
+    renderObject(queries, { skipTitle: true, printer })
   }
+}
+
+function renderMutations (mutations) {
+  const options = {}
+  const printer = options.printer || console.log
+
+  printer(`\n## Mutations`)
+  if (mutations) {
+    renderObject(mutations, { skipTitle: true, printer })
+  }
+}
+
+function renderObjects (objects) {
+  const options = {}
+  const printer = options.printer || console.log
 
   if (objects.length) {
     printer('\n## Objects')
-    objects.forEach(type => renderObject(type, { printer, getTypeURL }))
+
+    objects.forEach(type => renderObject(type, { printer }))
   }
+}
+
+function renderEnums (enums) {
+  const options = {}
+  const printer = options.printer || console.log
 
   if (enums.length) {
     printer('\n## Enums')
+
     enums.forEach(type => {
       printer(`\n### ${type.name}\n`)
       if (type.description) {
@@ -231,9 +236,15 @@ function renderSchema (schema, options) {
       printer('</table>')
     })
   }
+}
+
+function renderScalars (scalars) {
+  const options = {}
+  const printer = options.printer || console.log
 
   if (scalars.length) {
     printer('\n## Scalars\n')
+
     scalars.forEach(type => {
       printer(`### ${type.name}\n`)
       if (type.description) {
@@ -241,11 +252,94 @@ function renderSchema (schema, options) {
       }
     })
   }
+}
+
+function renderInterfaces (interfaces) {
+  const options = {}
+  const printer = options.printer || console.log
 
   if (interfaces.length) {
     printer('\n## Interfaces\n')
-    interfaces.forEach(type => renderObject(type, { printer, getTypeURL }))
+
+    interfaces.forEach(type => renderObject(type, { printer }))
   }
+}
+
+function renderSchema (schema, options) {
+  options = options || {}
+  const title = options.title || 'Schema Types'
+  const prologue = options.prologue || ''
+  const epilogue = options.epilogue || ''
+  const printer = options.printer || console.log
+  // const unknownTypeURL = options.unknownTypeURL
+
+  if (schema.__schema) {
+    schema = schema.__schema
+  }
+
+  const types = schema.types.filter(type => !type.name.startsWith('__'))
+  // const typeMap = schema.types.reduce((typeMap, type) => {
+  //   console.log('--------1')
+  //   console.log(typeMap)
+  //   console.log('--------2')
+  //   console.log(type)
+  //   console.log('--------3')
+  //   return Object.assign(typeMap, { [type.name]: type })
+  // }, {})
+
+  // const getTypeURL = type => {
+  //   const url = `#${type.name.toLowerCase()}`
+  //   if (typeMap[type.name]) {
+  //     return url
+  //   } else if (typeof unknownTypeURL === 'function') {
+  //     return unknownTypeURL(type)
+  //   } else if (unknownTypeURL) {
+  //     return unknownTypeURL + url
+  //   }
+  // }
+  // const getTypeURL = type => {
+  //   return ''
+  // }
+
+  const queries =
+    schema.queryType && types.find(type => type.name === schema.queryType.name)
+  const mutations =
+    schema.mutationType &&
+    types.find(type => type.name === schema.mutationType.name)
+  const objects = types.filter(
+    type => type.kind === 'OBJECT' && type !== queries && type !== mutations
+  )
+  const enums = types.filter(type => type.kind === 'ENUM')
+  const scalars = types.filter(type => type.kind === 'SCALAR')
+  const interfaces = types.filter(type => type.kind === 'INTERFACE')
+
+  sortBy(objects, 'name')
+  sortBy(enums, 'name')
+  sortBy(scalars, 'name')
+  sortBy(interfaces, 'name')
+
+  printer(`# ${title}\n`)
+
+  if (prologue) {
+    printer(`${prologue}\n`)
+  }
+
+  renderContent(
+    queries,
+    mutations,
+    objects,
+    enums,
+    scalars,
+    interfaces,
+    options
+  )
+
+  renderQueries(queries)
+  renderMutations(mutations)
+  renderObjects(objects)
+  renderEnums(enums)
+  renderScalars(scalars)
+  renderInterfaces(interfaces)
 
   if (epilogue) {
     printer(`\n${epilogue}`)
