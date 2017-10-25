@@ -71,6 +71,8 @@ function requireSchema (schemaPath) {
       }
     } else if (schema.queryType) {
       return Promise.resolve({ __schema: schema })
+    } else if (schema.mutationType) {
+      return Promise.resolve({ __schema: schema })
     } else if (schema.__schema) {
       return Promise.resolve(schema)
     } else if (schema.data && schema.data.__schema) {
